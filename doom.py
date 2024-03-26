@@ -577,7 +577,7 @@ def main():
     """
     Sets up world, displays world and allows you to move camera around world.
     """
-    cam = Camera(Vector3(0, 7, -3), Vector3(0, -90, 0), 1)
+    cam = Camera(Vector3(0, 7, -3), Vector3(0, -89, 0), 1)
     ground = SphereCollider(cam.position + Vector3(0, -1.5, 0), 0.4)
     wall = SphereCollider(cam.position + Vector3(0, -1.3, 0), 0.5)
     items = item_setup(cam, COLLIDERS)
