@@ -11,6 +11,8 @@ CAM_ACCELERATION = 0
 MOVE_ACCELERATION = [0, 0, 0]
 COLLIDERS = []
 
+GRAVITY = -0.01
+
 # region Classes
 
 @dataclass
@@ -103,17 +105,11 @@ class Vector3:
                       self.x * V.y - self.y * V.x)
 
 @dataclass
-class Quaternion:
-    x: float
-    y: float
-    z: float
-    w: float
-
-@dataclass
 class Camera:
     position: Vector3
     rotation: Vector3
     zoom: int
+
     def forward(self) -> Vector3:
         vec = Vector3(self.position.x, self.position.y, self.position.z+1)
         vec = vec.rotate_around(self.position, self.rotation) - self.position
@@ -223,13 +219,13 @@ class SphereCollider:
     position: Vector3
     r: float
 
-    def is_colliding(self, colliders) -> Union[None, PlaneCollider]:
+    def is_colliding(self, colliders) -> Union[None, PlaneCollider, SlopeCollider, WallCollider]:
         for col in colliders:
             if self.overlap(col) > 0:
                 return col
         return None
 
-    def overlap(self, col: Union[None, PlaneCollider]) -> float:
+    def overlap(self, col: Union[None, PlaneCollider, SlopeCollider, WallCollider]) -> float:
         if type(col) == SphereCollider:
             return (self.r + col.r) - self.position.distance(col.position)
 
@@ -259,24 +255,11 @@ class SphereCollider:
             y = abs(col.position.z - pos.z)
             z = min(abs(col.position.y - pos.y), abs(col.position.y + col.y - pos.y))
             return self.r - pos.distance(Vector3(x, y, z))
-
-
-@dataclass
-class Object:
-    position: Vector3
-    rotation: Vector3
-    collider: Union[None, SphereCollider]
-    mesh: str
-
-    def __post_init__(self):
-        if self.collider is None:
-            self.collider = None
-        if self.mesh is None:
-            self.mesh = ""
 # endregion
 
 
 # region Objects
+
 def create_poly(color: tuple, *args: Vector3):
     """
     Creates a polygon object out of a series of points and a color.
@@ -287,6 +270,7 @@ def create_poly(color: tuple, *args: Vector3):
     poly = Polygon(list(args), midpoint, color)
     poly.instantiate()
     return poly
+
 
 def create_cube(side: float, position: Vector3, color: tuple) -> list:
     """
@@ -316,6 +300,14 @@ def create_cube(side: float, position: Vector3, color: tuple) -> list:
     return list(polygons)
 
 def create_file_object(position: Vector3, y_rotation: float, filename: str, scale: float = 1) -> list:
+    """
+    Creates a new custom object, the shape of which is stored in a file.
+    :param position: Where you want to place the object.
+    :param y_rotation: How you want the object to be rotated.
+    :param filename: The name of the file to generate the object from.
+    :param scale: How big you want the object to be.
+    :return: A list of the objects polygons for rendering.
+    """
     with open("Objects/" + filename + ".obj") as file:
         color = (1, 1, 1)
         vectors = []
@@ -386,7 +378,7 @@ def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
 
     col = ground.is_colliding(colliders)
     if col is None:
-        move_ud = -0.01
+        move_ud = GRAVITY
     elif type(col) != WallCollider:
         MOVE_ACCELERATION[2] = ground.overlap(col) / 2
         move_ud = 0
@@ -396,12 +388,10 @@ def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
     MOVE_ACCELERATION[2] += move_ud
     CAM_ACCELERATION = (CAM_ACCELERATION + rotation*0.2)/1.2
 
-    previous = cam.position
     cam.position += (cam.forward().scale(MOVE_ACCELERATION[0]) +
                      cam.forward().rotate_around(Vector3(0, 0, 0), Vector3(0, 90, 0)).scale(MOVE_ACCELERATION[1]) +
                      Vector3(0, 1, 0).scale(MOVE_ACCELERATION[2])).scale(multiply)
     cam.rotation += Vector3(0, CAM_ACCELERATION, 0)
-    velocity = cam.position - previous
 
     wall_col = wall.is_colliding(colliders)
     if type(wall_col) is WallCollider and wall.overlap(col) is not None:
@@ -411,6 +401,12 @@ def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
 
 
 def item_setup(cam, colliders) -> list:
+    """
+    Generates the scene.
+    :param cam: The camera
+    :param colliders: The scenes colliders
+    :return: List of polygons to be added to the render list.
+    """
     items = list()
     items.append(Sprite(Vector3(0, 2, 0), "enemy1", 0.2))
     items.extend(create_cube(5, Vector3(-1, 0, 2), (0.5, 0.5, 1)))
