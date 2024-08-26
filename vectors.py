@@ -27,6 +27,8 @@ class Vector3:
         Returns the vector pointing the same direction, but with a magnitude of 1.
         """
         mag = self.magnitude()
+        if mag == 0:
+            return self
         return Vector3(self.x / mag, self.y / mag, self.z / mag)
 
     def directional_component(self, other):

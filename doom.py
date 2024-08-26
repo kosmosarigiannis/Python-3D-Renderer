@@ -55,37 +55,39 @@ class Polygon:
     def facing(self) -> Vector3:
         return ((self.points[0]-self.points[1])*(self.points[0]-self.points[-1])).normalize()
 
+
 @dataclass
 class Sprite:
     middle: Vector3
     file: str
     scale: float
 
+
 @dataclass
-class PlaneCollider:
+class Collider:
     position: Vector3
-    x: float
-    z: float
     y_rotation: int  # Clockwise
 
 @dataclass
-class SlopeCollider:
-    position: Vector3
+class PlaneCollider(Collider):
+    x: float
+    z: float
+
+
+@dataclass
+class SlopeCollider(Collider):
     x: float
     z: float
     slope: float
-    y_rotation: int  # Clockwise
+
 
 @dataclass
-class WallCollider:
-    position: Vector3
+class WallCollider(Collider):
     x: float
     y: float
-    y_rotation: int  # Clockwise
 
 @dataclass
-class SphereCollider:
-    position: Vector3
+class SphereCollider(Collider):
     r: float
 
     def is_colliding(self, colliders) -> Union[None, PlaneCollider, SlopeCollider, WallCollider]:
@@ -118,7 +120,7 @@ class SphereCollider:
 
         elif type(col) == WallCollider:
             pos = self.position.rotate_around(col.position, Vector3(0, col.y_rotation, 0))
-            if col.position.x < pos.x < col.position.x + col.x and col.position.y < pos.y < col.position.y + col.y and abs(col.position.z - pos.z) < self.r:
+            if col.position.x < pos.x < col.position.x + col.x and col.position.y < pos.y < col.position.y + col.y and col.position.z - pos.z < self.r:
                 return self.r - abs(col.position.z - pos.z)
             x = min(abs(col.position.x - pos.x), abs(col.position.x + col.x - pos.x))
             y = abs(col.position.z - pos.z)
@@ -168,7 +170,9 @@ def create_cube(side: float, position: Vector3, color: tuple) -> list:
     return list(polygons)
 
 
-def create_file_object(filename: str, position: Vector3 = Vector3(0,0,0), y_rotation: float = 0, scale: Vector3 = Vector3(1, 1, 1)) -> list:
+# Allow files to add colliders
+# Allow files to load other files as part of the file.
+def create_file_object(filename: str, position: Vector3 = Vector3(0,0,0), y_rotation: float = 0, scale: Vector3 = Vector3(1, 1, 1)) -> tuple:
     """
     Creates a new custom object, the shape of which is stored in a file.
     :param position: Where you want to place the object.
@@ -181,6 +185,7 @@ def create_file_object(filename: str, position: Vector3 = Vector3(0,0,0), y_rota
         color = (1, 1, 1)
         vectors = []
         polygons = []
+        colliders = []
         for line in file:
             stripped = line.strip()
             split = line.split(" ")
@@ -189,13 +194,42 @@ def create_file_object(filename: str, position: Vector3 = Vector3(0,0,0), y_rota
                 poly.instantiate()
                 polygons.append(poly)
                 vectors = []
-            elif stripped[0] == "v":
-                vec = Vector3(scale * float(split[1]), scale * float(split[2]), scale * float(split[3]))
+            elif split[0] == "v":
+                vec = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
                 vec += position
                 vectors.append(vec.rotate_around(position, Vector3(0, y_rotation, 0)))
-            elif stripped[0] == "c":
+            elif split[0] == "c":
                 color = (float(split[1]), float(split[2]), float(split[3]))
-    return polygons
+            elif split[0] == "wcol":
+                pos = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
+                pos += position
+                colliders.append(WallCollider(pos.rotate_around(position, Vector3(0, y_rotation, 0)),
+                                              float(split[4]) - y_rotation,
+                                              (scale.z * (0.5 * math.cos(float(split[4]) * (math.pi/180)) + 0.5) +
+                                               scale.x * (0.5 * -math.cos(float(split[4]) * (math.pi/180)) + 0.5)) * float(split[5]),
+                                              scale.y * float(split[6])))
+            elif split[0] == "rcol":
+                pos = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
+                pos += position
+                colliders.append(SlopeCollider(pos.rotate_around(position, Vector3(0, y_rotation, 0)),
+                                               float(split[4]) - y_rotation, scale.x * float(split[5]),
+                                               scale.z * float(split[6]), (scale.y / scale.z) * float(split[7])))
+            elif split[0] == "scol":
+                pos = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
+                pos += position
+                colliders.append(SphereCollider(pos.rotate_around(position, Vector3(0, y_rotation, 0)), 0, float(split[4])))
+            elif split[0] == "pcol":
+                pos = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
+                pos += position
+                colliders.append(PlaneCollider(pos.rotate_around(position, Vector3(0, y_rotation, 0)),
+                                               float(split[4]) - y_rotation, scale.x * float(split[5]),
+                                               scale.z * float(split[6])))
+            elif split[0] == "file":
+                pos = Vector3(scale.x * float(split[2]), scale.y * float(split[3]), scale.z * float(split[4]))
+                pos += position
+                scale = Vector3(scale.x * float(split[6]), scale.y * float(split[7]), scale.z * float(split[8]))
+                create_file_object(split[1], pos.rotate_around(position, Vector3(0, y_rotation, 0)), float(split[5]) + y_rotation, scale)
+    return polygons, colliders
 
 # endregion
 
@@ -211,7 +245,7 @@ def init(t: Turtle()):
     t.goto(0, 0)
 
 
-def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, colliders):
+def controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, colliders):
     """
     Allows user to press keyboard buttons to move and rotate the camera around the virtual world.
     This function also simulates player gravity and collision.
@@ -287,18 +321,19 @@ def item_setup(cam, colliders) -> list:
                              Vector3(-4.5, 0, -7.5), Vector3(-4.5, 0, -2.5), Vector3(-10, 0, -2.5)))
     items.append(create_poly((1, 0.5, 0.5), Vector3(0.5, 0, -7.5),
                              Vector3(10, 0, -7.5), Vector3(10, 0, -2.5), Vector3(0.5, 0, -2.5)))
-    items.extend(create_file_object("ramp", Vector3(-2, 0, -5), 90, 5))
+    poly, collide = create_file_object("ramp", Vector3(-2, 0, -5), 135, Vector3(5, 5, 5))
+    items.extend(poly)
+    colliders.extend(collide)
 
-    colliders.append(SphereCollider(Vector3(-5, -5, 0), 5))
-    colliders.append(PlaneCollider(Vector3(-10, 0, -12.5), 20, 20, 0))
-    colliders.append(SlopeCollider(Vector3(0.5, 0, -7.5), 5, 5, 0.5, -90))
-    colliders.append(WallCollider(Vector3(-1, 0, 2), 5, 5, 0))
-    colliders.append(WallCollider(Vector3(4, 0, 2), 5, 2.5, 270))
+    colliders.append(SphereCollider(Vector3(-5, -5, 0), 0, 5))
+    colliders.append(PlaneCollider(Vector3(-10, 0, -12.5), 0, 20, 20))
+    # colliders.append(SlopeCollider(Vector3(0.5, 0, -7.5), -90, 5, 5, 0.5))
+    colliders.append(WallCollider(Vector3(-1, 0, 2), 0, 5, 5))
+    colliders.append(WallCollider(Vector3(4, 0, 2), 270, 5, 2.5))
     return items
 
 
-# Depth Buffer?
-# Back face culling? <<
+# Back face culling? << Implemented already!
 def render(cam: Camera, items: list, t: Turtle()):
     """
     Moves the turtle so that it draws a three-dimensional image on a 2D screen.
@@ -443,8 +478,8 @@ def main():
     Sets up world, displays world and allows you to move camera around world.
     """
     cam = Camera(Vector3(0, 7, -3), Vector3(0, -89, 0), 1)
-    ground = SphereCollider(cam.position + Vector3(0, -1.5, 0), 0.4)
-    wall = SphereCollider(cam.position + Vector3(0, -1.3, 0), 0.5)
+    ground = SphereCollider(cam.position + Vector3(0, -1.5, 0), 0, 0.4)
+    wall = SphereCollider(cam.position + Vector3(0, -1.3, 0), 0, 0.5)
 
     items = item_setup(cam, COLLIDERS)
     turtle1 = Turtle()
@@ -460,7 +495,7 @@ def main():
             t = turtle2
         i += 1
         # Controls
-        Controls(cam, ground, wall, COLLIDERS)
+        controls(cam, ground, wall, COLLIDERS)
         # Visuals
         render(cam, items, t)
         time.sleep(0.02)
