@@ -10,6 +10,13 @@ from typing import Any, Union
 CAM_ACCELERATION = 0
 MOVE_ACCELERATION = [0, 0, 0]
 COLLIDERS = []
+GRAVITY = 0
+
+"""
+This is a game engine used to make levels.
+UNFINISHED
+"""
+
 
 # region Classes
 
@@ -365,6 +372,10 @@ def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
         move_ss += 0.1
     if keyboard.is_pressed("d"):
         move_ss -= 0.1
+    if keyboard.is_pressed("e"):
+        move_ud += 0.1
+    if keyboard.is_pressed("q"):
+        move_ud -= 0.1
     if keyboard.is_pressed("left arrow"):
         rotation += 4
     if keyboard.is_pressed("right arrow"):
@@ -375,18 +386,12 @@ def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
     colliders.sort(key=lambda x: ground.overlap(x), reverse=True)
 
     col = ground.is_colliding(colliders)
-    if col is None:
-        move_ud = 0
-    elif type(col) != WallCollider:
-        MOVE_ACCELERATION[2] = ground.overlap(col) / 2
-        move_ud = 0
 
     MOVE_ACCELERATION[0] = (MOVE_ACCELERATION[0] + move_fb*0.15)/1.15
     MOVE_ACCELERATION[1] = (MOVE_ACCELERATION[1] + move_ss*0.15)/1.15
-    MOVE_ACCELERATION[2] += move_ud
+    MOVE_ACCELERATION[2] = (MOVE_ACCELERATION[2] + move_ud*0.15)/1.15
     CAM_ACCELERATION = (CAM_ACCELERATION + rotation*0.2)/1.2
 
-    previous = cam.position
     cam.position += (cam.forward().scale(MOVE_ACCELERATION[0]) +
                      cam.forward().rotate_around(Vector3(0, 0, 0), Vector3(0, 90, 0)).scale(MOVE_ACCELERATION[1]) +
                      Vector3(0, 1, 0).scale(MOVE_ACCELERATION[2])).scale(multiply)
@@ -407,23 +412,7 @@ def item_setup(cam, colliders) -> list:
     :return: List of polygons to be added to the render list.
     """
     items = list()
-    items.append(Sprite(Vector3(0, 2, 0), "enemy1", 0.2))
-    items.extend(create_cube(5, Vector3(-1, 0, 2), (0.5, 0.5, 1)))
-    items.append(create_poly((0.8, 0.5, 0.5), Vector3(-10,0,-2.5),
-                             Vector3(10,0,-2.5), Vector3(10,0,2), Vector3(-10,0,2)))
-    items.append(create_poly((1, 0.5, 0.5), Vector3(-10, 0, -12.5),
-                             Vector3(10, 0, -12.5), Vector3(10, 0, -7.5), Vector3(-10, 0, -7.5)))
-    items.append(create_poly((1, 0.5, 0.5), Vector3(-10, 0, -7.5),
-                             Vector3(-4.5, 0, -7.5), Vector3(-4.5, 0, -2.5), Vector3(-10, 0, -2.5)))
-    items.append(create_poly((1, 0.5, 0.5), Vector3(0.5, 0, -7.5),
-                             Vector3(10, 0, -7.5), Vector3(10, 0, -2.5), Vector3(0.5, 0, -2.5)))
-    items.extend(create_file_object(Vector3(-2, 0, -5), 90, "ramp", 5))
-
-    colliders.append(SphereCollider(Vector3(-5, -5, 0), 5))
-    colliders.append(PlaneCollider(Vector3(-10, 0, -12.5), 20, 20, 0))
-    colliders.append(SlopeCollider(Vector3(0.5, 0, -7.5), 5, 5, 0.5, -90))
-    colliders.append(WallCollider(Vector3(-1, 0, 2), 5, 5, 0))
-    colliders.append(WallCollider(Vector3(4, 0, 2), 5, 2.5, 270))
+    items.append(create_poly((0.5, 0.5, 0.5), Vector3(0,0,0), Vector3(0,0,1), Vector3(1,0,0)))
     return items
 
 
