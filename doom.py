@@ -228,7 +228,10 @@ def create_file_object(filename: str, position: Vector3 = Vector3(0,0,0), y_rota
                 pos = Vector3(scale.x * float(split[2]), scale.y * float(split[3]), scale.z * float(split[4]))
                 pos += position
                 scale = Vector3(scale.x * float(split[6]), scale.y * float(split[7]), scale.z * float(split[8]))
-                create_file_object(split[1], pos.rotate_around(position, Vector3(0, y_rotation, 0)), float(split[5]) + y_rotation, scale)
+                poly, collide = create_file_object(split[1], pos.rotate_around(position, Vector3(0, y_rotation, 0)),
+                                                   float(split[5]) + y_rotation, scale)
+                polygons.extend(poly)
+                colliders.extend(collide)
     return polygons, colliders
 
 # endregion
