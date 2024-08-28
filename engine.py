@@ -1,172 +1,39 @@
 import time
 from turtle import Turtle
 import turtle
-import math
 import keyboard
+from vectors import *
 from dataclasses import dataclass
 from typing import Any, Union
 
 
 CAM_ACCELERATION = 0
 MOVE_ACCELERATION = [0, 0, 0]
-COLLIDERS = []
+
 GRAVITY = 0
 
 """
-This is a game engine used to make levels.
+This is where you create levels for the game.
 UNFINISHED
 """
 
-
 # region Classes
 
-@dataclass
-class Vector3:
-    x: float
-    y: float
-    z: float
-
-    def other(self):
-        return Vector3(self.x, self.y, self.z)
-
-    def scale(self, multiplier: float):
-        """
-        Returns the vector but [multiplier] times the magnitude.
-        """
-        return Vector3(self.x * multiplier, self.y * multiplier, self.z * multiplier)
-
-    def magnitude(self) -> float:
-        """
-        Returns the magnitude of the vector.
-        """
-        return math.sqrt(self.x**2 + self.y**2 + self.z**2)
-
-    def normalize(self):
-        """
-        Returns the vector pointing the same direction, but with a magnitude of 1.
-        """
-        mag = self.magnitude()
-        return Vector3(self.x / mag, self.y / mag, self.z / mag)
-
-    def directional_component(self, other):
-        """
-        Returns the component of this vector pointing in the direction of the other vector.
-        """
-        mag = self.magnitude()
-        angle = self.get_angle() - other.get_angle
-        return other.normalize().scale(mag * math.cos(angle))
-
-    def distance(self, V):
-        """
-        Finds the distance between two points.
-        """
-        return math.sqrt((self.x - V.x)**2 + (self.y - V.y)**2 + (self.z - V.z)**2)
-
-    def rotate_around(self, position, rotation):
-        """
-        Rotates a vector by [rotation] around a point [position], only y rotation works.
-        """
-        p = Vector3(self.x, self.y, self.z)
-        s_y = math.sin(rotation.y * (math.pi/180))
-        c_y = math.cos(rotation.y * (math.pi/180))
-
-        p.x -= position.x
-        p.z -= position.z
-
-        x_new = (p.x * c_y - p.z * s_y)
-        z_new = (p.x * s_y + p.z * c_y)
-
-        p.x = x_new + position.x
-        p.z = z_new + position.z
-        return p
-
-    def get_angle(self):
-        if self.z != 0:
-            angle = math.atan(self.x / self.z) * (180/math.pi)
-        else:
-            angle = 90
-        if self.x < 0:
-            angle += 180
-        return angle
-
-    def __neg__(self):
-        return Vector3(-self.x, -self.y, -self.z)
-
-    def __add__(self, V):
-        return Vector3(self.x + V.x, self.y + V.y, self.z + V.z)
-
-    # Method to subtract 2 Vectors
-    def __sub__(self, V):
-        return Vector3(self.x - V.x, self.y - V.y, self.z - V.z)
-
-    # Method to calculate the dot product of two Vectors
-    def __xor__(self, V):
-        return self.x * V.x + self.y * V.y + self.z * V.z
-
-    # Method to calculate the cross product of 2 Vectors
-    def __mul__(self, V):
-        return Vector3(self.y * V.z - self.z * V.y,
-                      self.z * V.x - self.x * V.z,
-                      self.x * V.y - self.y * V.x)
 
 @dataclass
-class Camera:
+class GameObject:
     position: Vector3
-    rotation: Vector3
+    y_rotation: int  # Clockwise
+
+
+@dataclass
+class Camera(GameObject):
     zoom: int
 
     def forward(self) -> Vector3:
         vec = Vector3(self.position.x, self.position.y, self.position.z+1)
-        vec = vec.rotate_around(self.position, self.rotation) - self.position
+        vec = vec.rotate_around(self.position, Vector3(0, self.y_rotation, 0)) - self.position
         return vec
-
-@dataclass
-class Line:
-    pos1: Vector3
-    pos2: Vector3
-
-    def length(self) -> float:
-        leng = self.pos1.distance(self.pos2)
-        return leng
-
-    def set_length(self, leng: float):
-        change = self.pos1 - self.pos2
-        change = change.normalize()
-        self.pos2 = self.pos1 + change.scale(leng)
-
-    def scale(self, mod: float):
-        change = self.pos1 - self.pos2
-        self.pos2 = self.pos1 + change.scale(mod)
-
-    def extend(self):
-        change = self.pos1 - self.pos2
-        self.pos1 += change.scale(100)
-        self.pos2 -= change.scale(100)
-
-    def line_intersection(self, other):
-        self.extend()
-        other.extend()
-        A = (self.pos1.x, self.pos1.z)
-        B = (self.pos2.x, self.pos2.z)
-        C = (other.pos1.x, other.pos1.z)
-        D = (other.pos2.x, other.pos2.z)
-        line1 = (A, B)
-        line2 = (C, D)
-        xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
-        zdiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
-
-        def det(a, b):
-            return a[0] * b[1] - a[1] * b[0]
-
-        div = det(xdiff, zdiff)
-        if div == 0:
-            pass
-            raise Exception('lines do not intersect')
-
-        d = (det(*line1), det(*line2))
-        x = det(d, xdiff) / div
-        z = det(d, zdiff) / div
-        return x, z
 
 
 @dataclass
@@ -191,37 +58,34 @@ class Polygon:
     def facing(self) -> Vector3:
         return ((self.points[0]-self.points[1])*(self.points[0]-self.points[-1])).normalize()
 
+
 @dataclass
 class Sprite:
     middle: Vector3
     file: str
     scale: float
 
-@dataclass
-class PlaneCollider:
-    position: Vector3
-    x: float
-    z: float
-    y_rotation: int  # Clockwise
 
 @dataclass
-class SlopeCollider:
-    position: Vector3
+class PlaneCollider(GameObject):
+    x: float
+    z: float
+
+
+@dataclass
+class SlopeCollider(GameObject):
     x: float
     z: float
     slope: float
-    y_rotation: int  # Clockwise
+
 
 @dataclass
-class WallCollider:
-    position: Vector3
+class WallCollider(GameObject):
     x: float
     y: float
-    y_rotation: int  # Clockwise
 
 @dataclass
-class SphereCollider:
-    position: Vector3
+class SphereCollider(GameObject):
     r: float
 
     def is_colliding(self, colliders) -> Union[None, PlaneCollider, SlopeCollider, WallCollider]:
@@ -254,7 +118,7 @@ class SphereCollider:
 
         elif type(col) == WallCollider:
             pos = self.position.rotate_around(col.position, Vector3(0, col.y_rotation, 0))
-            if col.position.x < pos.x < col.position.x + col.x and col.position.y < pos.y < col.position.y + col.y and abs(col.position.z - pos.z) < self.r:
+            if col.position.x < pos.x < col.position.x + col.x and col.position.y < pos.y < col.position.y + col.y and col.position.z - pos.z < self.r:
                 return self.r - abs(col.position.z - pos.z)
             x = min(abs(col.position.x - pos.x), abs(col.position.x + col.x - pos.x))
             y = abs(col.position.z - pos.z)
@@ -301,12 +165,14 @@ def create_cube(side: float, position: Vector3, color: tuple) -> list:
     polygons.append(create_poly(color, corner_xyz, corner_xz, corner_z, corner_yz))
     polygons.append(create_poly(color, corner_xyz, corner_xy, corner_y, corner_yz))
 
-
     return list(polygons)
 
-def create_file_object(position: Vector3, y_rotation: float, filename: str, scale: float = 1) -> list:
+
+# Allow files to add colliders
+# Allow files to load other files as part of the file.
+def create_file_object(filename: str, position: Vector3 = Vector3(0,0,0), y_rotation: float = 0, scale: Vector3 = Vector3(1, 1, 1)) -> tuple:
     """
-    Creates a new custom object, the shape of which is stored in a file.
+    Creates a new custom object, the shape and colliders of which is stored in a file.
     :param position: Where you want to place the object.
     :param y_rotation: How you want the object to be rotated.
     :param filename: The name of the file to generate the object from.
@@ -317,21 +183,62 @@ def create_file_object(position: Vector3, y_rotation: float, filename: str, scal
         color = (1, 1, 1)
         vectors = []
         polygons = []
+        colliders = []
         for line in file:
             stripped = line.strip()
             split = line.split(" ")
+            # Turns all the previous points into a new polygon.
             if (stripped == "" and len(vectors) > 1) or stripped == "end":
                 poly = Polygon(vectors, Vector3(0, 0, 0), color)
                 poly.instantiate()
                 polygons.append(poly)
                 vectors = []
-            elif stripped[0] == "v":
-                vec = Vector3(scale * float(split[1]), scale * float(split[2]), scale * float(split[3]))
+            # Sets a point for a polygon.
+            elif split[0] == "v":
+                vec = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
                 vec += position
                 vectors.append(vec.rotate_around(position, Vector3(0, y_rotation, 0)))
-            elif stripped[0] == "c":
+            # Sets the next polygons' color.
+            elif split[0] == "c":
                 color = (float(split[1]), float(split[2]), float(split[3]))
-    return polygons
+            # Creates a Wall Collider.
+            elif split[0] == "wcol":
+                pos = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
+                pos += position
+                colliders.append(WallCollider(pos.rotate_around(position, Vector3(0, y_rotation, 0)),
+                                              float(split[4]) - y_rotation,
+                                              (scale.z * (0.5 * math.cos(float(split[4]) * (math.pi/180)) + 0.5) +
+                                               scale.x * (0.5 * -math.cos(float(split[4]) * (math.pi/180)) + 0.5)) * float(split[5]),
+                                              scale.y * float(split[6])))
+            # Creates a Slope Collider.
+            elif split[0] == "rcol":
+                pos = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
+                pos += position
+                colliders.append(SlopeCollider(pos.rotate_around(position, Vector3(0, y_rotation, 0)),
+                                               float(split[4]) - y_rotation, scale.x * float(split[5]),
+                                               scale.z * float(split[6]), (scale.y / scale.z) * float(split[7])))
+            # Creates a Sphere Collider.
+            elif split[0] == "scol":
+                pos = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
+                pos += position
+                colliders.append(SphereCollider(pos.rotate_around(position, Vector3(0, y_rotation, 0)), 0, float(split[4])))
+            # Creates a Platform Collider
+            elif split[0] == "pcol":    # pcol
+                pos = Vector3(scale.x * float(split[1]), scale.y * float(split[2]), scale.z * float(split[3]))
+                pos += position
+                colliders.append(PlaneCollider(pos.rotate_around(position, Vector3(0, y_rotation, 0)),
+                                               float(split[4]) - y_rotation, scale.x * float(split[5]),
+                                               scale.z * float(split[6])))
+            # Loads another object from a file.
+            elif split[0] == "file":    # file <name> <position> <yrotation> <scale>
+                pos = Vector3(scale.x * float(split[2]), scale.y * float(split[3]), scale.z * float(split[4]))
+                pos += position
+                scale = Vector3(scale.x * float(split[6]), scale.y * float(split[7]), scale.z * float(split[8]))
+                poly, collide = create_file_object(split[1], pos.rotate_around(position, Vector3(0, y_rotation, 0)),
+                                                   float(split[5]) + y_rotation, scale)
+                polygons.extend(poly)
+                colliders.extend(collide)
+    return polygons, colliders
 
 # endregion
 
@@ -347,7 +254,7 @@ def init(t: Turtle()):
     t.goto(0, 0)
 
 
-def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, colliders):
+def controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, colliders):
     """
     Allows user to press keyboard buttons to move and rotate the camera around the virtual world.
     This function also simulates player gravity and collision.
@@ -372,10 +279,6 @@ def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
         move_ss += 0.1
     if keyboard.is_pressed("d"):
         move_ss -= 0.1
-    if keyboard.is_pressed("e"):
-        move_ud += 0.1
-    if keyboard.is_pressed("q"):
-        move_ud -= 0.1
     if keyboard.is_pressed("left arrow"):
         rotation += 4
     if keyboard.is_pressed("right arrow"):
@@ -386,16 +289,21 @@ def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
     colliders.sort(key=lambda x: ground.overlap(x), reverse=True)
 
     col = ground.is_colliding(colliders)
+    if col is None:
+        move_ud = GRAVITY
+    elif type(col) != WallCollider:
+        MOVE_ACCELERATION[2] = ground.overlap(col) / 2
+        move_ud = 0
 
     MOVE_ACCELERATION[0] = (MOVE_ACCELERATION[0] + move_fb*0.15)/1.15
     MOVE_ACCELERATION[1] = (MOVE_ACCELERATION[1] + move_ss*0.15)/1.15
-    MOVE_ACCELERATION[2] = (MOVE_ACCELERATION[2] + move_ud*0.15)/1.15
+    MOVE_ACCELERATION[2] += move_ud
     CAM_ACCELERATION = (CAM_ACCELERATION + rotation*0.2)/1.2
 
     cam.position += (cam.forward().scale(MOVE_ACCELERATION[0]) +
                      cam.forward().rotate_around(Vector3(0, 0, 0), Vector3(0, 90, 0)).scale(MOVE_ACCELERATION[1]) +
                      Vector3(0, 1, 0).scale(MOVE_ACCELERATION[2])).scale(multiply)
-    cam.rotation += Vector3(0, CAM_ACCELERATION, 0)
+    cam.y_rotation += CAM_ACCELERATION
 
     wall_col = wall.is_colliding(colliders)
     if type(wall_col) is WallCollider and wall.overlap(col) is not None:
@@ -404,7 +312,7 @@ def Controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
         cam.position -= overlap
 
 
-def item_setup(cam, colliders) -> list:
+def item_setup(cam) -> list:
     """
     Generates the scene.
     :param cam: The camera
@@ -412,12 +320,33 @@ def item_setup(cam, colliders) -> list:
     :return: List of polygons to be added to the render list.
     """
     items = list()
-    items.append(create_poly((0.5, 0.5, 0.5), Vector3(0,0,0), Vector3(0,0,1), Vector3(1,0,0)))
-    return items
+    colliders = list()
+    items.append(Sprite(Vector3(0, 2, 0), "enemy1", 0.2))
+    items.extend(create_cube(5, Vector3(-1, 0, 2), (0.5, 0.5, 1)))
+    items.append(create_poly((0.8, 0.5, 0.5), Vector3(-10,0,-2.5),
+                             Vector3(10,0,-2.5), Vector3(10,0,2), Vector3(-10,0,2)))
+    items.append(create_poly((1, 0.5, 0.5), Vector3(-10, 0, -12.5),
+                             Vector3(10, 0, -12.5), Vector3(10, 0, -7.5), Vector3(-10, 0, -7.5)))
+    items.append(create_poly((1, 0.5, 0.5), Vector3(-10, 0, -7.5),
+                             Vector3(-4.5, 0, -7.5), Vector3(-4.5, 0, -2.5), Vector3(-10, 0, -2.5)))
+    items.append(create_poly((1, 0.5, 0.5), Vector3(0.5, 0, -7.5),
+                             Vector3(10, 0, -7.5), Vector3(10, 0, -2.5), Vector3(0.5, 0, -2.5)))
+    poly, collide = create_file_object("cube", Vector3(-1, 0, 2), 0, Vector3(5, 5, 5))
+    items.extend(poly)
+    colliders.extend(collide)
+    poly, collide = create_file_object("ramp", Vector3(-2, 0, -5), 90, Vector3(5, 5, 5))
+    items.extend(poly)
+    colliders.extend(collide)
+
+    colliders.append(SphereCollider(Vector3(-5, -5, 0), 0, 5))
+    colliders.append(PlaneCollider(Vector3(-10, 0, -12.5), 0, 20, 20))
+    # colliders.append(SlopeCollider(Vector3(0.5, 0, -7.5), -90, 5, 5, 0.5))
+    colliders.append(WallCollider(Vector3(-1, 0, 2), 0, 5, 5))
+    colliders.append(WallCollider(Vector3(4, 0, 2), 270, 5, 2.5))
+    return items, colliders
 
 
-# Depth Buffer?
-# Back face culling? <<
+# Back face culling? << Implemented already!
 def render(cam: Camera, items: list, t: Turtle()):
     """
     Moves the turtle so that it draws a three-dimensional image on a 2D screen.
@@ -438,7 +367,7 @@ def render(cam: Camera, items: list, t: Turtle()):
             # Setup points
             relative_points = []
             for point in item.points:
-                pos = point.rotate_around(cam.position, -cam.rotation)
+                pos = point.rotate_around(cam.position, Vector3(0, -cam.y_rotation, 0))
                 relative_points.append(Vector3(pos.x - cam.position.x,
                                                pos.y - cam.position.y,
                                                pos.z - cam.position.z))
@@ -513,7 +442,7 @@ def render(cam: Camera, items: list, t: Turtle()):
 
         elif type(item) == Sprite:
             # Calculate sprite center
-            pos = item.middle.rotate_around(cam.position, -cam.rotation)
+            pos = item.middle.rotate_around(cam.position, Vector3(0, -cam.y_rotation, 0))
             point = Vector3(pos.x - cam.position.x,
                             pos.y - cam.position.y,
                             pos.z - cam.position.z)
@@ -530,7 +459,7 @@ def render(cam: Camera, items: list, t: Turtle()):
                     for line in file:
                         strip = line.strip()
                         command = strip.split()
-                        if command != []:
+                        if command:
                             if command[0] == "f":
                                 t.forward((item.scale * float(command[1])) / point.z)
                             elif command[0] == "c":
@@ -561,10 +490,11 @@ def main():
     """
     Sets up world, displays world and allows you to move camera around world.
     """
-    cam = Camera(Vector3(0, 7, -3), Vector3(0, -89, 0), 1)
-    ground = SphereCollider(cam.position + Vector3(0, -1.5, 0), 0.4)
-    wall = SphereCollider(cam.position + Vector3(0, -1.3, 0), 0.5)
-    items = item_setup(cam, COLLIDERS)
+    cam = Camera(Vector3(0, 7, -3), -89, 1)
+    ground = SphereCollider(cam.position + Vector3(0, -1.5, 0), 0, 0.4)
+    wall = SphereCollider(cam.position + Vector3(0, -1.3, 0), 0, 0.5)
+
+    items, colliders = item_setup(cam)
     turtle1 = Turtle()
     turtle2 = Turtle()
     init(turtle1)
@@ -578,7 +508,7 @@ def main():
             t = turtle2
         i += 1
         # Controls
-        Controls(cam, ground, wall, COLLIDERS)
+        controls(cam, ground, wall, colliders)
         # Visuals
         render(cam, items, t)
         time.sleep(0.02)
