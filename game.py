@@ -9,6 +9,7 @@ from typing import Any, Union
 
 CAM_ACCELERATION = 0
 MOVE_ACCELERATION = [0, 0, 0]
+RENDER_DISTANCE = 40
 
 GRAVITY = -0.01
 
@@ -298,11 +299,16 @@ def item_setup(cam) -> list:
     poly, collide = create_file_object("map1", Vector3(0, 0, 0), 0, Vector3(1, 1, 1))
     items.extend(poly)
     colliders.extend(collide)
+    poly, collide = create_file_object("map1", Vector3(20, 0, 0), 0, Vector3(1, 1, 1))
+    items.extend(poly)
+    colliders.extend(collide)
+    poly, collide = create_file_object("map1", Vector3(0, 0, 20), 0, Vector3(1, 1, 1))
+    items.extend(poly)
+    colliders.extend(collide)
 
     return items, colliders
 
 
-# Back face culling? << Implemented already!
 def render(cam: Camera, items: list, t: Turtle()):
     """
     Moves the turtle so that it draws a three-dimensional image on a 2D screen.
@@ -316,7 +322,7 @@ def render(cam: Camera, items: list, t: Turtle()):
     turtle.setworldcoordinates(-cam.zoom, -cam.zoom, cam.zoom, cam.zoom)
     cam_close = 0.25  # How close you want to render items: Do not put at 0 or below.
     for item in items:
-        if (type(item) == Polygon and item.middle.distance(cam.position) < 20
+        if (type(item) == Polygon and item.middle.distance(cam.position) < RENDER_DISTANCE
                 and (item.facing() ^ (cam.position - item.middle).normalize()) <= 0):
             t.fillcolor(item.color)
             t.pencolor(item.color)
