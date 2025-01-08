@@ -78,6 +78,13 @@ def create_file_object(filename: str, position: Vector3 = Vector3(0,0,0), y_rota
                                                    float(split[5]) + y_rotation, newscale)
                 polygons.extend(poly)
                 colliders.extend(collide)
+            # Loads another sprite from a file.
+            elif split[0] == "sprite":    # sprite <name> <position> <scale>
+                pos = Vector3(scale.x * float(split[2]), scale.y * float(split[3]), scale.z * float(split[4]))
+                pos += position
+                newscale = float(split[5]) * max(scale.x, scale.y, scale.z)
+                polygons.append(Sprite(pos, split[1], newscale))
+
     return polygons, colliders
 
 
@@ -146,7 +153,7 @@ def item_setup(cam) -> list:
     """
     items = list()
     colliders = list()
-    items.append(Sprite(Vector3(2, 4, 2), "enemy1", 0.2))
+    #items.append(Sprite(Vector3(2, 4, 2), "enemy1", 0.2))
 
     poly, collide = create_file_object("map1", Vector3(0, 0, 0), 0, Vector3(1, 1, 1))
     items.extend(poly)
