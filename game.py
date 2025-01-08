@@ -6,9 +6,6 @@ from vectors import *
 from dataclasses import dataclass
 from typing import Any, Union
 
-
-CAM_ACCELERATION = 0
-MOVE_ACCELERATION = [0, 0, 0]
 RENDER_DISTANCE = 40
 
 GRAVITY = -0.01
@@ -29,6 +26,8 @@ class GameObject:
 @dataclass
 class Camera(GameObject):
     zoom: int
+    acceleration: [3]
+    angular_acceleration: float
 
     def forward(self) -> Vector3:
         vec = Vector3(self.position.x, self.position.y, self.position.z+1)
@@ -240,8 +239,6 @@ def controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
     move_ud = 0
     rotation = 0
     multiply = 1
-    global MOVE_ACCELERATION
-    global CAM_ACCELERATION
     if keyboard.is_pressed("shift"):
         multiply = 1.5
     if keyboard.is_pressed("w"):
@@ -265,18 +262,18 @@ def controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
     if col is None:
         move_ud = GRAVITY
     elif type(col) != WallCollider:
-        MOVE_ACCELERATION[2] = ground.overlap(col) / 2
+        cam.acceleration[2] = ground.overlap(col) / 2
         move_ud = 0
 
-    MOVE_ACCELERATION[0] = (MOVE_ACCELERATION[0] + move_fb*0.15)/1.15
-    MOVE_ACCELERATION[1] = (MOVE_ACCELERATION[1] + move_ss*0.15)/1.15
-    MOVE_ACCELERATION[2] += move_ud
-    CAM_ACCELERATION = (CAM_ACCELERATION + rotation*0.2)/1.2
+    cam.acceleration[0] = (cam.acceleration[0] + move_fb * 0.15) / 1.15
+    cam.acceleration[1] = (cam.acceleration[1] + move_ss * 0.15) / 1.15
+    cam.acceleration[2] += move_ud
+    cam.angular_acceleration = (cam.angular_acceleration + rotation*0.2)/1.2
 
-    cam.position += (cam.forward().scale(MOVE_ACCELERATION[0]) +
-                     cam.forward().rotate_around(Vector3(0, 0, 0), Vector3(0, 90, 0)).scale(MOVE_ACCELERATION[1]) +
-                     Vector3(0, 1, 0).scale(MOVE_ACCELERATION[2])).scale(multiply)
-    cam.y_rotation += CAM_ACCELERATION
+    cam.position += (cam.forward().scale(cam.acceleration[0]) +
+                     cam.forward().rotate_around(Vector3(0, 0, 0), Vector3(0, 90, 0)).scale(cam.acceleration[1]) +
+                     Vector3(0, 1, 0).scale(cam.acceleration[2])).scale(multiply)
+    cam.y_rotation += cam.angular_acceleration
 
     wall_col = wall.is_colliding(colliders)
     if type(wall_col) is WallCollider and wall.overlap(col) is not None:
@@ -297,12 +294,6 @@ def item_setup(cam) -> list:
     items.append(Sprite(Vector3(2, 4, 2), "enemy1", 0.2))
 
     poly, collide = create_file_object("map1", Vector3(0, 0, 0), 0, Vector3(1, 1, 1))
-    items.extend(poly)
-    colliders.extend(collide)
-    poly, collide = create_file_object("map1", Vector3(20, 0, 0), 0, Vector3(1, 1, 1))
-    items.extend(poly)
-    colliders.extend(collide)
-    poly, collide = create_file_object("map1", Vector3(0, 0, 20), 0, Vector3(1, 1, 1))
     items.extend(poly)
     colliders.extend(collide)
 
@@ -452,7 +443,7 @@ def main():
     """
     Sets up world, displays world and allows you to move camera around world.
     """
-    cam = Camera(Vector3(0, 7, -3), -89, 1)
+    cam = Camera(Vector3(0, 7, -3), -89, 1, [0,0,0], 0)
     ground = SphereCollider(cam.position + Vector3(0, -1.5, 0), 0, 0.4)
     wall = SphereCollider(cam.position + Vector3(0, -1.3, 0), 0, 0.5)
 
