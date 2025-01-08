@@ -115,6 +115,8 @@ def controls(cam: Camera, ground: SphereCollider, wall: SphereCollider, collider
         rotation += 4
     if keyboard.is_pressed("right arrow"):
         rotation -= 4
+    if keyboard.is_pressed("escape"):
+        return 1
 
     ground.position = cam.position + Vector3(0, -1.5, 0)
     wall.position = cam.position + Vector3(0, -1.3, 0)

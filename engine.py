@@ -9,8 +9,12 @@ This Program launches and runs the game so you can add objects and save the
 scene to render later.
 """
 
+SELECTED = 0
+CHANGE = False
+CHANGE_CHECK = False
+ITEMS = ["cube", "ramp"]
 
-def controls(cam: Camera):
+def controls(cam: Camera, items: list) -> int:
     """
     Allows user to press keyboard buttons to move and rotate the camera around the virtual world.
     This function also simulates player gravity and collision.
@@ -23,6 +27,10 @@ def controls(cam: Camera):
     move_ud = 0
     rotation = 0
     multiply = 1
+    global SELECTED
+    global CHANGE
+    global CHANGE_CHECK
+    item_changed = False
     if keyboard.is_pressed("shift"):
         multiply = 1.5
     if keyboard.is_pressed("w"):
@@ -41,6 +49,18 @@ def controls(cam: Camera):
         rotation += 4
     if keyboard.is_pressed("right arrow"):
         rotation -= 4
+    if keyboard.is_pressed("escape"):
+        return 1
+    if keyboard.is_pressed("1"):
+        SELECTED = 0
+        item_changed = True
+        CHANGE = True
+    if keyboard.is_pressed("2"):
+        SELECTED = 1
+        item_changed = True
+        CHANGE = True
+    if not keyboard.is_pressed("1") and not keyboard.is_pressed("2"):
+        CHANGE = False
 
     cam.acceleration[0] = (cam.acceleration[0] + move_fb * 2) / 2
     cam.acceleration[1] = (cam.acceleration[1] + move_ss * 2) / 2
@@ -51,6 +71,13 @@ def controls(cam: Camera):
                      cam.forward().rotate_around(Vector3(0, 0, 0), Vector3(0, 90, 0)).scale(cam.acceleration[1]) +
                      Vector3(0, 1, 0).scale(cam.acceleration[2])).scale(multiply)
     cam.y_rotation += cam.angular_acceleration
+
+    if item_changed and CHANGE_CHECK != CHANGE:
+        poly, collide = create_file_object(ITEMS[SELECTED], cam.position, cam.y_rotation, Vector3(1, 1, 1))
+        items.extend(poly)
+    CHANGE_CHECK = CHANGE
+
+    return 0
 
 
 def item_setup(cam, file) -> list:
@@ -74,7 +101,7 @@ def main():
     """
     file = input("Enter file name:")
 
-    cam = Camera(Vector3(0, 2, -3), -89, 1, [0,0,0], 0)
+    cam = Camera(Vector3(0, 2, -3), -89, 1, [0, 0, 0], 0)
 
     items = item_setup(cam, file)
     turtle1 = Turtle()
@@ -83,14 +110,15 @@ def main():
     init(turtle2)
 
     i = 0
-    while True:
+    end = 0
+    while end == 0:
         if i % 2 == 0:
             t = turtle1
         else:
             t = turtle2
         i += 1
         # Controls
-        controls(cam)
+        end = controls(cam, items)
         # Visuals
         render(cam, items, t)
         time.sleep(0.02)
