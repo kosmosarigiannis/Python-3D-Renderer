@@ -1,5 +1,7 @@
+import math
 import time
 import keyboard
+import os
 from renderer import *
 from game_objects import *
 from game import create_file_object
@@ -13,6 +15,9 @@ SELECTED = 0
 CHANGE = False
 CHANGE_CHECK = False
 ITEMS = ["cube", "ramp"]
+
+POS_LOCK = 1
+ROT_LOCK = 45
 
 def controls(cam: Camera, items: list) -> int:
     """
@@ -30,7 +35,6 @@ def controls(cam: Camera, items: list) -> int:
     global SELECTED
     global CHANGE
     global CHANGE_CHECK
-    item_changed = False
     if keyboard.is_pressed("shift"):
         multiply = 1.5
     if keyboard.is_pressed("w"):
@@ -53,27 +57,27 @@ def controls(cam: Camera, items: list) -> int:
         return 1
     if keyboard.is_pressed("1"):
         SELECTED = 0
-        item_changed = True
-        CHANGE = True
     if keyboard.is_pressed("2"):
         SELECTED = 1
-        item_changed = True
+    if keyboard.is_pressed("space"):
         CHANGE = True
-    if not keyboard.is_pressed("1") and not keyboard.is_pressed("2"):
+    if not keyboard.is_pressed("space"):
         CHANGE = False
 
     cam.acceleration[0] = (cam.acceleration[0] + move_fb * 2) / 2
     cam.acceleration[1] = (cam.acceleration[1] + move_ss * 2) / 2
     cam.acceleration[2] = (cam.acceleration[2] + move_ud * 2) / 2
-    cam.angular_acceleration = (cam.angular_acceleration + rotation*0.2)/1.2
+    cam.angular_acceleration = (cam.angular_acceleration + rotation * 0.2) / 1.2
 
     cam.position += (cam.forward().scale(cam.acceleration[0]) +
                      cam.forward().rotate_around(Vector3(0, 0, 0), Vector3(0, 90, 0)).scale(cam.acceleration[1]) +
                      Vector3(0, 1, 0).scale(cam.acceleration[2])).scale(multiply)
     cam.y_rotation += cam.angular_acceleration
 
-    if item_changed and CHANGE_CHECK != CHANGE:
-        poly, collide = create_file_object(ITEMS[SELECTED], cam.position, cam.y_rotation, Vector3(1, 1, 1))
+    if CHANGE_CHECK == False and CHANGE == True:
+        pos = Vector3(math.floor((cam.position.x/POS_LOCK) + (POS_LOCK/2))*POS_LOCK, math.floor((cam.position.y/POS_LOCK) + (POS_LOCK/2))*POS_LOCK, math.floor((cam.position.z/POS_LOCK) + (POS_LOCK/2))*POS_LOCK)
+        rot = math.floor((cam.y_rotation/ROT_LOCK)+(ROT_LOCK/2))*ROT_LOCK
+        poly, collide = create_file_object(ITEMS[SELECTED], pos, rot, Vector3(1, 1, 1))
         items.extend(poly)
     CHANGE_CHECK = CHANGE
 
@@ -88,9 +92,11 @@ def item_setup(cam, file) -> list:
     :return: List of polygons to be added to the render list.
     """
     items = list()
-
-    poly, collide = create_file_object(file, Vector3(0, 0, 0), 0, Vector3(1, 1, 1))
-    items.extend(poly)
+    if (os.path.exists("Objects/" + file + ".obj")):
+        poly, collide = create_file_object(file, Vector3(0, 0, 0), 0, Vector3(1, 1, 1))
+        items.extend(poly)
+    else:
+        print("Nuh Uh")
 
     return items
 
